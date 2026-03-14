@@ -101,7 +101,7 @@ CREATE TABLE group_sessions (
     activity_id INT NOT NULL,
     hall_id INT NOT NULL,
     instructor_id INT,
-    start_time TEXT NOT NULL, -- ('HH:MM)
+    start_time TEXT NOT NULL, -- ('HH:MM:SS)
     end_time TEXT NOT NULL,
     signup_deadline TEXT NOT NULL,
     sessiondate TEXT NOT NULL, -- ('YYYY-MM-DD')
@@ -114,12 +114,13 @@ CREATE TABLE group_sessions (
 
 ---------- Booking ----------
 CREATE TABLE session_booking (
-    id INT NOT NULL,
+    id INT AUTO_INCREMENT PRIMARY KEY, -- auto increment from user bookings
     session_id INT NOT NULL,
     user_id INT NOT NULL,
-    booking_time TEXT NOT NULL,
+    --booking_time TEXT NOT NULL,
+    booking_time TEXT NOT NULL, --(YYYY-MM-DD HH:MM:SS)
     UNIQUE(user_id, session_id), -- only unique bookings
-    PRIMARY KEY (id),
+    --PRIMARY KEY (id),
     FOREIGN KEY (session_id) REFERENCES group_sessions(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
