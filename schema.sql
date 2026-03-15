@@ -113,8 +113,9 @@ CREATE TABLE group_sessions (
 
 
 ---------- Booking ----------
-CREATE TABLE session_booking (
-    id INT AUTO_INCREMENT PRIMARY KEY, -- auto increment from user bookings
+CREATE TABLE session_bookings (
+    --id INT AUTO_INCREMENT PRIMARY KEY, -- auto increment from user bookings
+    id INTEGER PRIMARY KEY AUTOINCREMENT, -- auto increment from user bookings
     session_id INT NOT NULL,
     user_id INT NOT NULL,
     --booking_time TEXT NOT NULL,
@@ -131,7 +132,7 @@ CREATE TABLE attendances (
     timestamp TEXT NOT NULL, --ex '2026-03-09 08:28'
     attended BOOLEAN,
     PRIMARY KEY (session_booking_id, timestamp),
-    FOREIGN KEY (session_booking_id) REFERENCES session_booking(id)
+    FOREIGN KEY (session_booking_id) REFERENCES session_bookings(id)
 );
 
 ---------- Arrivals ----------
@@ -184,5 +185,5 @@ CREATE TABLE dot_system (
     session_booking_id INT NOT NULL, -- session identifies user
     date_given TEXT NOT NULL,
     PRIMARY KEY (id),
-    FOREIGN KEY (session_booking_id) REFERENCES session_booking(id)
+    FOREIGN KEY (session_booking_id) REFERENCES session_bookings(id)
 );
