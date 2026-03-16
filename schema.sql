@@ -181,9 +181,12 @@ CREATE TABLE hall_booking (
 
 ---------- Dot system ----------
 CREATE TABLE dot_system (
-    id INT NOT NULL,
+    --id INT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INT NOT NULL, -- NEW CHANGE
     session_booking_id INT NOT NULL, -- session identifies user
     date_given TEXT NOT NULL,
-    PRIMARY KEY (id),
+    --PRIMARY KEY (id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (session_booking_id) REFERENCES session_bookings(id)
 );
