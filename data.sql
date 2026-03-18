@@ -154,7 +154,7 @@ insert into group_sessions(id, activity_id, hall_id, instructor_id, start_time, 
 
 -- 17.03.2026
 ,(3, 4, 1, 2, '18:30', '19:15', '17:30', '2026-03-17') -- Spinning at Øya. This is the activity in use case 2
-,(4, 1, 7, 8, '17:00', '17:45', '16:00', '2026-03-17') -- Spinning at Dragvoll
+,(4, 1, 5, 8, '17:00', '17:45', '16:00', '2026-03-17') -- Spinning at Dragvoll
 
 -- 18.03.2026
 ,(5, 1, 2, 2, '19:00', '19:45', '18:00', '2026-03-18') -- Spinning at Øya
