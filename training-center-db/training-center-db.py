@@ -1,0 +1,461 @@
+######### Imports ##########
+import sqlite3
+import datetime
+from datetime import timedelta
+from datetime import datetime
+from datetime import datetime, timedelta
+import sys
+import os
+
+########## Functions and procedures ##########
+
+def check_dots_30_days(conn, user_id):
+    '''
+    Checks how many dots were given the last 30 days and if user can train
+    user_id : Users id 
+    '''
+    cur = conn.cursor() # cursor to execute SQL
+
+    thirtydays = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("""SELECT COUNT(*) FROM dot_system WHERE user_id=? AND date_given >= ?;""", (user_id, thirtydays))
+    active_dots = cur.fetchone()[0]
+    if active_dots >= 3:
+        print("User is blacklisted.")
+        return 0
+    else:
+        print("Booking allowed ...")
+        return 1
+
+
+
+def dot_expire(conn, user_id):
+    '''Function that returns oldest dot, useful to tell user when it expires'''
+
+    cur = conn.cursor() # cursor to execute SQL
+
+    cur.execute("""SELECT date_given FROM dot_system WHERE user_id=? ORDER BY date_given ASC LIMIT 1;""", (user_id,))  # Selects date of oldest dot
+    date_given = cur.fetchone()[0] 
+
+    date_given_dt = datetime.strptime(date_given, "%Y-%m-%d")  # Date dot was given
+    dot_expires_dt = date_given_dt + timedelta(days=30)  # Date dot expires
+    dot_expires = dot_expires_dt.date()
+    date_given = date_given_dt.date()
+    # today = datetime.now()  # Today
+    # today = today.datle()
+    return date_given, dot_expires
+
+
+# ========== Functions for booking ==========
+
+
+def capacity(conn, session_id):
+    ''' Function that checks capacity at a class'''
+
+    cur = conn.cursor() # cursor to execute SQL
+
+    cur.execute("""SELECT COUNT(*) FROM session_bookings WHERE session_id = ?;""", (session_id,))
+    booked = cur.fetchone()[0]
+
+    cur.execute("""SELECT capacity FROM halls JOIN group_sessions ON halls.id = group_sessions.hall_id WHERE group_sessions.id = ?;""", (session_id,))
+
+    capacity = cur.fetchone()[0]
+
+    if booked >= capacity:
+        print("Session is full")
+        return 0
+    else:
+        print("The session has available spots. Continues with booking...")
+        return 1
+
+def find_activities(conn, activity_name, start_time):
+    '''Function that find matching sessions based on activity name and time. User chooses one.'''
+
+    cur = conn.cursor() # cursor to execute SQL
+
+    cur.execute("""
+        SELECT g.id, g.sessiondate, g.start_time, gm.gym_name 
+        FROM group_sessions g 
+        INNER JOIN halls h ON h.id = g.hall_id
+        INNER JOIN gyms gm ON gm.id = h.gym_id
+        INNER JOIN activities a ON g.activity_id = a.id
+        WHERE a.name=? AND g.start_time = ?;""", (activity_name, start_time))
+    
+    sessions = cur.fetchall()
+
+    if not sessions:
+        print("No sessions found.")
+        return None
+    
+    print("Printing matches...")
+    
+    for i, s in enumerate(sessions, start=1):
+        print(f"{i}. ID={s[0]}, Date={s[1]}, Time={s[2]}, Gym={s[3]}")
+
+    print("To choose, please enter the number (left)")
+    choice = int(input("> "))
+
+    if choice < 1 or choice > len(sessions):
+        print("Invalid choice.")
+        return None
+    
+    session_id = sessions[choice - 1][0]  # unique session id
+
+    return session_id
+
+
+def already_booked(conn, user_id, session_id):
+        
+        cur = conn.cursor() # cursor to execute SQL
+        cur.execute("""SELECT * FROM session_bookings WHERE user_id=? AND session_id=?;""", (user_id, session_id))
+        booked = cur.fetchall()
+        if booked:
+            print("You have already booked this session. You cannot book it again. You will be sent back to main menu.")
+            return 0
+        else:
+            return 1
+
+def book_session(conn, user_id, session_id):
+    '''
+    Function that checks constraints and perform booking if everything is okay.
+    --------------------
+    user_id : Users unique id
+    session_id: Sessions unique id (is retrieved from ****)
+    '''
+    cur = conn.cursor() # cursor to execute SQL
+    # Check capacity
+    if not capacity(conn, session_id):
+        return None, None
+    
+    if not already_booked(conn, user_id, session_id):
+        return None, None
+    
+    # TODO: Must register before booking deadline
+
+    # If not returned above, it means constraints were not violated, so booking can continue
+    cur.execute("""SELECT sessiondate FROM group_sessions WHERE id=?;""", (session_id,))
+    result = cur.fetchone()
+    if result is None:
+        return
+    session_date = result[0]
+
+
+    booking_time = str((datetime.now()).replace(microsecond=0))  # Booking time in format YYY-MM-DD HH:MM:SS
+
+    cur.execute("""INSERT INTO session_bookings (session_id, user_id, booking_time) VALUES (?, ?, ?);""", (session_id, user_id, booking_time))
+    booking_id = cur.lastrowid  # the autogenerated PK for that booking
+
+    conn.commit()
+
+    print("Booking successful")
+    return booking_id, session_date
+
+
+
+
+def dot_giver(conn, user_id, booking_id, session_date):
+    '''Function that gives a dot to user if user did not arrive in time'''
+    # if arrived_in_time(arrival_time, session_time):
+    #     # True if arrived on time
+    #     print("All good!")
+    #     return
+    # else:
+        
+    # Make date for the dot
+    # today = datetime.now()
+    # date_part = today.date()
+    # today_str = str(date_part)
+
+    cur = conn.cursor() # cursor to execute SQL
+
+    date_str = str(session_date)
+
+    # Insert dot in system
+    cur.execute("""INSERT INTO dot_system (user_id, session_booking_id, date_given) VALUES (?, ?, ?)""", (user_id, booking_id, date_str))
+
+    conn.commit()
+
+
+
+def visit_history(conn, user_id, start_date):
+    '''
+    Returns user history since a given start date
+    
+    user_id : Users' unique ID
+    start_date : Which date should be shown, in format YYYY-MM-DD
+    '''
+    cur = conn.cursor() # cursor to execute SQL
+    cur.execute("""
+    SELECT 
+        activities.name, 
+        gyms.gym_name, 
+        group_sessions.sessiondate, 
+        group_sessions.start_time
+    FROM group_sessions
+        INNER JOIN activities ON group_sessions.activity_id = activities.id
+        INNER JOIN halls ON group_sessions.hall_id = halls.id
+        INNER JOIN gyms ON halls.gym_id = gyms.id
+        INNER JOIN session_bookings ON session_bookings.session_id = group_sessions.id
+
+    -- One user cannot book the same group session twice, so it should be unique, but check
+    WHERE 
+        session_bookings.user_id = ?
+        AND group_sessions.sessiondate >= ?
+    ;
+
+    """, (user_id, start_date))
+
+    visit_history = cur.fetchall()
+
+    return visit_history
+
+
+def show_classes(conn, start_day):
+    ''' Function that prints classes one week from start day'''
+
+    cur = conn.cursor() # cursor to execute SQL
+
+    cur.execute(
+        """SELECT 
+                g.gym_name AS Gym,
+                a.name,
+                a.description,
+                s.sessiondate AS Day,
+                s.start_time AS Time
+                --s.signup_deadline
+            FROM group_sessions s
+            INNER JOIN activities a ON a.id = s.activity_id
+            INNER JOIN halls h ON h.id = s.hall_id
+            INNER JOIN gyms g ON g.id = h.gym_id
+            WHERE s.sessiondate > ?
+            ORDER BY s.sessiondate, s.start_time
+            LIMIT 7
+            ;
+            """, (start_day,)
+            )
+    
+    schedule = cur.fetchall()
+
+    rows = []
+
+    for s in schedule:
+        row = [s[i] for i in range(len(s))]
+        rows.append(row)
+
+    # print(rows)
+    for row in rows:
+        print(f"==============================\n{row[3]} {row[4]}\n    {row[0]}\n    {row[1]}\n------------------------------\n    {row[2]}\n==============================\n\n\n")
+
+
+def is_db_initialized(conn):
+    '''This function checks if tables have been created'''
+    cur = conn.cursor() # cursor to execute SQL
+    cur.execute("""SELECT name FROM sqlite_master WHERE type='table' AND name='gyms';""")
+    return cur.fetchone() is not None
+
+def reset_database(conn):
+
+    conn.close()  # Must remove db connection first
+
+    if os.path.exists("gym.db"):
+        os.remove("gym.db")
+
+    return
+
+
+def login_menu(conn):
+    '''
+    This is the login menu for the user
+    Returns user_id and email
+    '''
+    cur = conn.cursor() # cursor to execute SQL
+
+    while True:
+        email = str(input("Please enter username (your email) to log in, or type 'quit' to go back to main menu: "))
+
+        if email.lower() == 'quit':
+            return None, None  # go back to main
+
+        cur.execute("""SELECT id FROM users WHERE email = ? ;""", (email,))
+        result = cur.fetchone()  # user_id stored here
+
+        if result is None:
+            print("No user found with that email. Please try again")
+            continue  # retry login
+
+        # If login successful, it proceeds to this point
+        print("Login successful.")
+        user_id = result[0]
+        return user_id, email
+    
+def user_menu(conn, user_id, email):
+    '''Logged in user menu'''
+    cur = conn.cursor() # cursor to execute SQL
+    while True:
+        print(f"Welcome, {email}! Your user_id is {user_id}\n------------------------------------------------------------\nYou are now in user menu. Please choose what you want to do by entering the commands (left) from the menu, or log out by entering 'logout':\n    b : Book session\n    s : see week schedule")
+
+        user_input = str(input("> "))
+
+        if user_input.strip().lower() == 'b':
+
+            print("Let's book a group session!")
+            print("Checking that you are allowed to book...")
+
+            if check_dots_30_days(conn, user_id):  # returns true if okay, false if three or more dots
+
+                # Choose activity
+                print("Find the activity you want to book by entering the requested info.")
+                activity_name = str(input("Enter activity name: "))
+                activity_time = str(input("Enter activity time in format 'HH:MM:SS': "))
+                
+                session_id = find_activities(conn, activity_name, activity_time)
+                if session_id is None:
+                    return
+                # Book if possible
+                booking_id, session_date = book_session(conn, user_id, session_id)
+                if booking_id is None:
+                    return
+                if not check_arrival(conn, session_id, user_id):
+                    dot_giver(conn, user_id, booking_id, session_date)
+                return
+            
+            elif not check_dots_30_days(conn, user_id):
+                firstdot, expiration = dot_expire(conn, user_id)
+                print(f"You cannot make any bookings while you are blacklisted\nThe blacklisting lasts for as long as you have three dots in the system.\nWhen the first dot expires, you can book sessions again.\nThe first dot was given at {firstdot} and expires at {expiration}\nYou can begin booking from ...")
+                return
+            
+        elif user_input.strip().lower() == 's':
+            print("To see week schedule, please enter the the date you want it to start from. A week from that date will be shown. Please enter start day in the format YYYY-MM-DD.")
+            start_day = str(input("> "))
+            show_classes(conn, start_day)
+    
+        elif user_input.strip().lower() == 'logout':
+            print("Logging out... You will come back to main menu. To fully exit the program, please exit main menu as well.")
+            return
+        else:
+            print("Not valid input. Please retry.")
+
+
+def main_menu(conn):
+    '''Main menu after logging in'''
+    cur = conn.cursor() # cursor to execute SQL
+    while True:  # MAIN MENU
+
+        print("------------------------------------------------------------\nYOU ARE NOW IN MAIN MENU\nChoose what you want to do by entering the command (left) and click enter:\n    e : Create tables and insert data (use case 1)\n    l : Log into system (use cases 2-6)\n    s : Statistics (use cases 7-8)\n    r : Reset database to start over\n    q : End the program.\n------------------------------------------------------------")
+
+        user_input = str(input("> "))
+
+        if user_input.strip().lower() == "q":
+            print("Exiting program. Goodbye!")
+            conn.close()  # Removes connection
+            return
+
+        elif user_input.strip().lower() == 'e':
+
+            if is_db_initialized(conn):
+                print("Database is already initialized. You must reset it (r) if you want to do this option again.")
+            else:
+                print("Creating tables and inserting data ...")
+
+                ########## Connect to DB, create cursor, execute schema.sql and data.sql
+
+
+                # Execute schema.sql
+                with open("schema.sql", "r", encoding="utf-8") as f:  # Reads the file
+                    schema_sql = f.read()
+                cur.executescript(schema_sql)  # runs sql statements
+                conn.commit()  # saves changes
+
+
+                # Execute data.sql
+                with open("data.sql", "r", encoding="utf-8") as f:
+                    data_sql = f.read()
+                cur.executescript(data_sql)
+                conn.commit()
+
+                # db_initialized = True  # Now this command can not be done again unless user resets db
+
+                print("You may now use training-center-db. You can reset everything and start over by entering 'r'")
+
+        elif user_input.strip().lower() == 'l':
+            user_id, email = login_menu(conn)
+            if user_id is not None:
+                user_menu(conn, user_id, email)
+
+        elif user_input.strip().lower() == 'r':
+            print("Resetting database..")
+            reset_database(conn)
+            print("Establishing new connection...")
+            # immediately connect to database since user can still want to do things. Only disconnect when quitting
+            conn = sqlite3.connect("gym.db")
+            # cursor to execute SQL
+            cur = conn.cursor()
+            print("You may now start from scratch again.")
+
+
+
+def arrived_in_time(conn, arrival_time, session_time):
+    
+    '''
+    Function that checks if time1 is no less than 5 minutes before time2
+
+    Returns True if user arrived in time, False if not
+    '''
+    cur = conn.cursor() # cursor to execute SQL
+
+    five_min_before = session_time - timedelta(minutes=5)
+
+    print(f"Deadline for showing up is {five_min_before}.\nUser arrived at {arrival_time}")
+
+    if arrival_time <= five_min_before:
+        print("User arrived on time!")
+        return 1  # user arrived in time
+    else:
+        print("User did not arrive in time.")
+        return 0
+    
+
+
+def check_arrival(conn, session_id, user_id):
+
+    cur = conn.cursor() # cursor to execute SQL
+    cur.execute("""SELECT sessiondate, start_time FROM group_sessions WHERE id=?""", (session_id,))
+    sessiondate, start_time = cur.fetchone()
+
+    print(f"The day is now {sessiondate}. Session starts at {start_time}. When do you arrive? Enter in the format HH:MM:SS")
+
+    arrival_str = str(input(f"> "))
+
+    # Convert to time objects
+
+    date_obj = datetime.strptime(sessiondate, "%Y-%m-%d").date()
+    arrival_time_obj = datetime.strptime(arrival_str, "%H:%M:%S").time()
+    start_time_obj = datetime.strptime(start_time, "%H:%M:%S").time()
+
+    # Combine date and time for both
+    dt_arrival = datetime.combine(date_obj, arrival_time_obj)
+    dt_session = datetime.combine(date_obj, start_time_obj)
+
+    if arrived_in_time(conn, dt_arrival, dt_session):
+        print("Good job!")
+        return 1
+    else:
+        print("Bad. A dot will be created.")
+        return 0
+
+
+# dot_giver handles both checking if the time user arrived is good or not, and give dot if not
+# dot_giver(email_to_id, session_id, arrival_time, session_time)
+            
+
+def main():
+
+    # db_initialized = False  # Database is not yet initialized
+
+    conn = sqlite3.connect("gym.db") # connect to database (this creates gym.db if it does not exist)
+
+    main_menu(conn)  # Goes to main menu
+
+
+
+if __name__ == "__main__":
+    main()
