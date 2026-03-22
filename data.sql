@@ -1,3 +1,5 @@
+/*Use case 1: Enter the training centre, halls, some bikes, some users, some trainers and trainings as mentioned above. This must be delivered as SQL*/
+
 ---------- Training centres ----------
 insert into gyms (id, street_address, gym_name, gym_type, staffed) values
 (1, 'Vangslundsgate 2', 'Øya', 'spinning', 0)
@@ -149,14 +151,14 @@ insert into group_sessions(id, activity_id, hall_id, instructor_id, start_time, 
 /*Halls 1-3 are at Øya, and halls 4-6 are at Dragvoll.
 */
 -- 16.03.2026
-(1, 2, 3, 2, '18:00', '18:45', '17:00', '2026-03-16') -- Spinning at Øya
-,(2, 3, 6, 8, '16:00', '16:45', '15:00', '2026-03-16') -- Spinning at Dragvoll
+(1, 2, 3, 2, '18:00:00', '18:45:00', '17:00:00', '2026-03-16') -- Spinning at Øya
+,(2, 3, 6, 8, '16:00:00', '16:45:00', '15:00:00', '2026-03-16') -- Spinning at Dragvoll
 
 -- 17.03.2026
-,(3, 4, 1, 2, '18:30', '19:15', '17:30', '2026-03-17') -- Spinning at Øya. This is the activity in use case 2
-,(4, 1, 5, 8, '17:00', '17:45', '16:00', '2026-03-17') -- Spinning at Dragvoll
+,(3, 4, 1, 2, '18:30:00', '19:15:00', '17:30:00', '2026-03-17') -- Spinning at Øya. This is the activity in use case 2
+,(4, 1, 5, 8, '17:00:00', '17:45:00', '16:00:00', '2026-03-17') -- Spinning at Dragvoll
 
 -- 18.03.2026
-,(5, 1, 2, 2, '19:00', '19:45', '18:00', '2026-03-18') -- Spinning at Øya
-,(6, 3, 4, 8, '16:00', '16:45', '15:00', '2026-03-18') -- Spinning at Dragvoll
+,(5, 1, 2, 2, '19:00:00', '19:45:00', '18:00:00', '2026-03-18') -- Spinning at Øya
+,(6, 3, 4, 8, '16:00:00', '16:45:00', '15:00:00', '2026-03-18') -- Spinning at Dragvoll
 ;
