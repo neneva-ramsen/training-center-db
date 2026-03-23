@@ -359,7 +359,7 @@ def main_menu(conn):
                 ########## Connect to DB, create cursor, execute schema.sql and data.sql
 
 
-                # Execute schema.sql
+                # Execute schema.sql 
                 with open("schema.sql", "r", encoding="utf-8") as f:  # Reads the file
                     schema_sql = f.read()
                 cur.executescript(schema_sql)  # runs sql statements
