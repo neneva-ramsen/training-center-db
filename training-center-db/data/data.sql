@@ -291,4 +291,24 @@ insert into session_bookings (session_id, user_id, booking_time) values
 -- Session 24 (Ashtanga)
 ,(24, 8, '2026-02-23 14:00:00')
 ,(24, 9, '2026-02-23 15:00:00')
+
+-- Some bookings for test user to show that use case 7 works for more than one user
+,(7, 11, '2026-01-11 11:00:00')
+,(10, 11, '2026-01-18 11:00:00')
+
+-- Session 11 (StepMoves)
+,(11, 11, '2026-01-19 12:00:00')
+
+-- Session 12 (Pump)
+,(12, 11, '2026-01-20 14:00:00')
+
+-- Test data for group training together (use case 8)
+,(7, 13, '2026-01-11 10:00:00')
+,(7, 12, '2026-01-11 10:00:00')
+
+,(8, 12, '2026-01-12 09:00:00')
+,(8, 13, '2026-01-12 09:00:00')
+
+,(9, 11, '2026-01-13 15:00:00')
+,(9, 13, '2026-01-13 15:00:00')
 ;

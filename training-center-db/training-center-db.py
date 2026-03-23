@@ -4,6 +4,7 @@ import datetime
 from datetime import timedelta
 from datetime import datetime
 from datetime import datetime, timedelta
+from datetime import date
 import sys
 import os
 
@@ -20,7 +21,7 @@ def check_dots_30_days(conn, user_id):
     cur.execute("""SELECT COUNT(*) FROM dot_system WHERE user_id=? AND date_given >= ?;""", (user_id, thirtydays))
     active_dots = cur.fetchone()[0]
     if active_dots >= 3:
-        print("User is blacklisted.")
+        # print("User is blacklisted.")
         return 0
     else:
         print("Booking allowed ...")
@@ -92,7 +93,12 @@ def find_activities(conn, activity_name, start_time):
         print(f"{i}. ID={s[0]}, Date={s[1]}, Time={s[2]}, Gym={s[3]}")
 
     print("To choose, please enter the number (left)")
-    choice = int(input("> "))
+    try:
+        choice = int(input("> "))
+    except ValueError:
+        print("Invalid input. Please enter a number.")
+        return None
+
 
     if choice < 1 or choice > len(sessions):
         print("Invalid choice.")
@@ -200,6 +206,7 @@ def visit_history(conn, user_id, start_date):
     WHERE 
         session_bookings.user_id = ?
         AND group_sessions.sessiondate >= ?
+    ORDER BY group_sessions.sessiondate
     ;
 
     """, (user_id, start_date))
@@ -226,7 +233,7 @@ def show_classes(conn, start_day):
             INNER JOIN activities a ON a.id = s.activity_id
             INNER JOIN halls h ON h.id = s.hall_id
             INNER JOIN gyms g ON g.id = h.gym_id
-            WHERE s.sessiondate > ?
+            WHERE s.sessiondate >= ?
             ORDER BY s.sessiondate, s.start_time
             LIMIT 7
             ;
@@ -262,6 +269,65 @@ def reset_database(conn):
     return
 
 
+def top_trainer(conn, start_month, end_month):
+    '''Function that finds who trained the most and return it. '''
+    cur = conn.cursor()
+    cur.execute("""
+    WITH user_counts AS (
+        SELECT 
+            b.user_id,
+            COUNT(*) AS num_bookings
+
+            FROM session_bookings b
+
+            WHERE b.user_id NOT IN (
+                -- Don't include those where user have a dot for the session
+                SELECT d.user_id FROM dot_system d WHERE d.session_booking_id = b.id
+                )
+            AND booking_time > ? 
+            AND booking_time < ?
+            GROUP BY b.user_id
+            ORDER BY num_bookings DESC
+        )
+    SELECT *
+    FROM user_counts
+    WHERE num_bookings = (SELECT MAX(num_bookings) FROM user_counts)
+    ;""", (start_month, end_month))
+
+    results = cur.fetchall()
+
+    # user, num_trainings = results
+
+    for user, num_trainings in results:
+        cur.execute("""SELECT first_name, last_name FROM users WHERE id=?;""", (user,))
+        user_row = cur.fetchone()
+        firstname, lastname = user_row
+
+        print(f"User: {firstname} {lastname}\nNumber of attended sessions: {num_trainings}")
+
+def trained_together(conn):
+    '''Function that prints how many times two users have trained together'''
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT 
+            u1.email AS User1,
+            u2.email AS User2,
+            COUNT(*) AS Friendsessions
+        FROM session_bookings b1
+        INNER JOIN session_bookings b2 ON b1.id > b2.id AND b1.session_id = b2.session_id
+        INNER JOIN users u1 ON b1.user_id = u1.id
+        INNER JOIN users u2 ON b2.user_id = u2.id
+        GROUP BY b1.user_id, b2.user_id
+        ORDER BY friendsessions DESC
+        ;""")
+    
+    results = cur.fetchall()
+    for r in results:
+        print("------------------------------------------------------------")
+        print(f"User {r[0]} trained with user {r[1]} {r[2]} times")
+
+
 def login_menu(conn):
     '''
     This is the login menu for the user
@@ -291,7 +357,7 @@ def user_menu(conn, user_id, email):
     '''Logged in user menu'''
     cur = conn.cursor() # cursor to execute SQL
     while True:
-        print(f"Welcome, {email}! Your user_id is {user_id}\n------------------------------------------------------------\nYou are now in user menu. Please choose what you want to do by entering the commands (left) from the menu, or log out by entering 'logout':\n    b : Book session\n    s : see week schedule")
+        print(f"Welcome, {email}! Your user_id is {user_id}\n------------------------------------------------------------\nYou are now in user menu. Please choose what you want to do by entering the commands (left) from the menu, or log out by entering 'logout':\n    b : Book session\n    s : see week schedule\n    h : see visit history")
 
         user_input = str(input("> "))
 
@@ -320,19 +386,70 @@ def user_menu(conn, user_id, email):
             
             elif not check_dots_30_days(conn, user_id):
                 firstdot, expiration = dot_expire(conn, user_id)
-                print(f"You cannot make any bookings while you are blacklisted\nThe blacklisting lasts for as long as you have three dots in the system.\nWhen the first dot expires, you can book sessions again.\nThe first dot was given at {firstdot} and expires at {expiration}\nYou can begin booking from ...")
+                print(f"You cannot make any bookings while you are blacklisted\nThe blacklisting lasts for as long as you have three dots in the system.\nWhen the first dot expires, you can book sessions again.\nThe first dot was given at {firstdot} and expires at {expiration}\nYou can begin booking from {expiration}")
                 return
             
         elif user_input.strip().lower() == 's':
             print("To see week schedule, please enter the the date you want it to start from. A week from that date will be shown. Please enter start day in the format YYYY-MM-DD.")
             start_day = str(input("> "))
             show_classes(conn, start_day)
+
+        elif user_input.strip().lower() == 'h':
+            print("Find your visit history.")
+            start_date = str(input("Please enter what date you want the history to start at (format YYYY-MM-DD): "))
+
+            visit_histories = visit_history(conn, user_id, start_date)
+            if visit_histories is None:
+                print("No history found.")
+                return
+            for v in visit_histories:
+                print(" | ".join(str(element) for element in v))
+                print("-"*60)
     
         elif user_input.strip().lower() == 'logout':
             print("Logging out... You will come back to main menu. To fully exit the program, please exit main menu as well.")
             return
         else:
             print("Not valid input. Please retry.")
+
+def statistics_menu(conn):
+    '''Menu for statistics'''
+    cur = conn.cursor()
+    while True:  # statistics menu
+        print(f"------------------------------------------------------------\nYOU ARE NOW IN STATISTICS MENU\nChoose what you want to do by entering the command (left) and click enter:\n    7 : Print who visited the most (use case 7)\n    8 : Print how many times two users trained together (use case 8)\n    q : Quit and go back to main\n------------------------------------------------------------")
+
+        user_input = str(input("> "))
+
+        if user_input.strip().lower() == "7":
+            print("Lets find the person or the people who have trained the most group lessons in a given month!")
+            try:
+                year = int(input("Enter year (YYYY): "))
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+                return
+
+            try:
+                month = int(input("Enter month (MM): "))
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+                return
+
+            start_date = date(year, month, 1)
+
+            # Get end date based on start date
+            if month == 12:
+                end_date = date(year + 1, 1, 1)
+            else:
+                end_date = date(year, month + 1, 1)
+
+            top_trainer(conn, start_date, end_date)
+
+        elif user_input.strip().lower() == "8":
+            print("-"*40)
+            print("Printing how many times two users trained together...:")
+            trained_together(conn)
+        elif user_input.strip().lower() == "q":
+            return
 
 
 def main_menu(conn):
@@ -358,19 +475,38 @@ def main_menu(conn):
 
                 ########## Connect to DB, create cursor, execute schema.sql and data.sql
 
+                # Find path
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                schema_path = os.path.join(base_dir, "data", "schema.sql")
+                data_path = os.path.join(base_dir, "data", "data.sql")
 
-                # Execute schema.sql 
-                with open("schema.sql", "r", encoding="utf-8") as f:  # Reads the file
-                    schema_sql = f.read()
-                cur.executescript(schema_sql)  # runs sql statements
-                conn.commit()  # saves changes
+                try:
+                    with open(schema_path, "r", encoding="utf-8") as f:
+                        cur.executescript(f.read())
+
+                    with open(data_path, "r", encoding="utf-8") as f:
+                        cur.executescript(f.read())
+
+                    conn.commit()
+                    print("Success!")
+
+                except Exception as e:
+                    conn.rollback()  # So that it is not half made
+                    print("Error during initialization: ", e)
 
 
-                # Execute data.sql
-                with open("data.sql", "r", encoding="utf-8") as f:
-                    data_sql = f.read()
-                cur.executescript(data_sql)
-                conn.commit()
+                # # Execute schema.sql 
+                # with open("schema.sql", "r", encoding="utf-8") as f:  # Reads the file
+                #     schema_sql = f.read()
+                # cur.executescript(schema_sql)  # runs sql statements
+                # conn.commit()  # saves changes
+
+
+                # # Execute data.sql
+                # with open("data.sql", "r", encoding="utf-8") as f:
+                #     data_sql = f.read()
+                # cur.executescript(data_sql)
+                # conn.commit()
 
                 # db_initialized = True  # Now this command can not be done again unless user resets db
 
@@ -380,6 +516,9 @@ def main_menu(conn):
             user_id, email = login_menu(conn)
             if user_id is not None:
                 user_menu(conn, user_id, email)
+
+        elif user_input.strip().lower() == 's':
+            statistics_menu(conn)
 
         elif user_input.strip().lower() == 'r':
             print("Resetting database..")
@@ -451,7 +590,9 @@ def main():
 
     # db_initialized = False  # Database is not yet initialized
 
-    conn = sqlite3.connect("gym.db") # connect to database (this creates gym.db if it does not exist)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(base_dir, "gym.db")
+    conn = sqlite3.connect(db_path) # connect to database (this creates gym.db if it does not exist)
 
     main_menu(conn)  # Goes to main menu
 
