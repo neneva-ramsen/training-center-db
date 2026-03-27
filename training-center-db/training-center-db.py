@@ -134,8 +134,6 @@ def book_session(conn, user_id, session_id):
     
     if not already_booked(conn, user_id, session_id):
         return None, None
-    
-    # TODO: Must register before booking deadline
 
     # If not returned above, it means constraints were not violated, so booking can continue
     cur.execute("""SELECT sessiondate FROM group_sessions WHERE id=?;""", (session_id,))
@@ -160,16 +158,6 @@ def book_session(conn, user_id, session_id):
 
 def dot_giver(conn, user_id, booking_id, session_date):
     '''Function that gives a dot to user if user did not arrive in time'''
-    # if arrived_in_time(arrival_time, session_time):
-    #     # True if arrived on time
-    #     print("All good!")
-    #     return
-    # else:
-        
-    # Make date for the dot
-    # today = datetime.now()
-    # date_part = today.date()
-    # today_str = str(date_part)
 
     cur = conn.cursor() # cursor to execute SQL
 
@@ -495,21 +483,6 @@ def main_menu(conn):
                     print("Error during initialization: ", e)
 
 
-                # # Execute schema.sql 
-                # with open("schema.sql", "r", encoding="utf-8") as f:  # Reads the file
-                #     schema_sql = f.read()
-                # cur.executescript(schema_sql)  # runs sql statements
-                # conn.commit()  # saves changes
-
-
-                # # Execute data.sql
-                # with open("data.sql", "r", encoding="utf-8") as f:
-                #     data_sql = f.read()
-                # cur.executescript(data_sql)
-                # conn.commit()
-
-                # db_initialized = True  # Now this command can not be done again unless user resets db
-
                 print("You may now use training-center-db. You can reset everything and start over by entering 'r'")
 
         elif user_input.strip().lower() == 'l':
@@ -581,14 +554,10 @@ def check_arrival(conn, session_id, user_id):
         print("Bad. A dot will be created.")
         return 0
 
-
-# dot_giver handles both checking if the time user arrived is good or not, and give dot if not
-# dot_giver(email_to_id, session_id, arrival_time, session_time)
             
 
 def main():
 
-    # db_initialized = False  # Database is not yet initialized
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(base_dir, "gym.db")

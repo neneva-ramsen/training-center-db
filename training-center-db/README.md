@@ -1,8 +1,1 @@
-Install python
-No dependencies necessary ? I have only built in python things.
-
-Go to directory
-    cd ...
-
-Run program:
-    python training-center-db.py
+Database with a simple terminal-based application for interacting with the database.
